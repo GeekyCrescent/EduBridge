@@ -1,0 +1,344 @@
+// App.tsx
+import React, { useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Switch,
+  Alert,
+  SafeAreaView,
+} from "react-native";
+
+import "./global.css";
+// Paleta EduBridge directa (no requiere editar tailwind.config)
+const COLORS = {
+  blue: "#0077B6",     // primario
+  sky: "#90E0EF",      // fondo suave / bordes
+  green: "#52B788",    // confirmación
+  gray: "#6C757D",     // texto secundario
+  accent: "#FF8C42",   // acento / requerido
+  ink: "#0B3D61",      // texto principal oscuro
+  white: "#FFFFFF",
+  bg: "#F7FBFF",       // fondo de app
+};
+
+type Lang =
+  | "Español"
+  | "Inglés"
+  | "Portugués"
+  | "Francés"
+  | "Alemán"
+  | "Italiano"
+  | "Otro";
+
+interface FormData {
+  name: string;
+  age: string;
+  originCountry: string;
+  residenceCountry: string;
+  grade: string;
+  language: Lang | "";
+  consent: boolean;
+}
+
+const initialForm: FormData = {
+  name: "",
+  age: "",
+  originCountry: "",
+  residenceCountry: "",
+  grade: "",
+  language: "",
+  consent: false,
+};
+
+export default function App() {
+  const [form, setForm] = useState<FormData>(initialForm);
+  const [submitting, setSubmitting] = useState(false);
+
+  const requiredMissing = useMemo(() => {
+    const missing: string[] = [];
+    if (!form.name.trim()) missing.push("name");
+    if (!form.age.trim()) missing.push("age");
+    if (!form.originCountry.trim()) missing.push("originCountry");
+    if (!form.residenceCountry.trim()) missing.push("residenceCountry");
+    if (!form.grade.trim()) missing.push("grade");
+    if (!form.language) missing.push("language");
+    if (!form.consent) missing.push("consent");
+    return missing;
+  }, [form]);
+
+  const onSubmit = async () => {
+    if (requiredMissing.length) {
+      const map: Record<string, string> = {
+        name: "Nombre",
+        age: "Edad",
+        originCountry: "País de origen",
+        residenceCountry: "País de residencia",
+        grade: "Grado/Nivel",
+        language: "Idioma preferido",
+        consent: "Consentimiento",
+      };
+      const readable = requiredMissing.map((k) => map[k] || k).join(", ");
+      Alert.alert("Faltan datos", `Completa: ${readable}`);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await new Promise((r) => setTimeout(r, 700));
+      Alert.alert("¡Listo!", "Tu registro se envió correctamente 🙌");
+      setForm(initialForm);
+    } catch {
+      Alert.alert("Error", "Ocurrió un problema al enviar el formulario.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const Field = ({
+    label,
+    placeholder,
+    value,
+    onChangeText,
+    keyboardType = "default",
+    required = false,
+  }: {
+    label: string;
+    placeholder?: string;
+    value: string;
+    onChangeText: (t: string) => void;
+    keyboardType?: "default" | "numeric";
+    required?: boolean;
+  }) => (
+    <View style={{ marginBottom: 16 }}>
+      <Text style={{ marginBottom: 4, fontWeight: '600', fontSize: 16, color: COLORS.blue }}>
+        {label} {required ? <Text style={{ color: COLORS.accent }}>*</Text> : null}
+      </Text>
+      <TextInput
+        placeholder={placeholder}
+        placeholderTextColor={COLORS.gray}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        style={{
+          borderRadius: 16,
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          fontSize: 16,
+          borderWidth: 1,
+          borderColor: COLORS.sky,
+          backgroundColor: COLORS.white,
+          color: COLORS.ink,
+        }}
+      />
+    </View>
+  );
+
+  const LangChip = ({
+    label,
+    active,
+    onPress,
+  }: {
+    label: Lang;
+    active: boolean;
+    onPress: () => void;
+  }) => (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      className="px-4 py-2 rounded-full mr-2 mb-2"
+      style={{ backgroundColor: active ? COLORS.green : COLORS.sky }}
+    >
+      <Text className={active ? "text-white font-semibold" : "font-medium"} style={{ color: active ? COLORS.white : COLORS.ink }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+
+  const Header = () => (
+    <View className="items-center">
+      {/* Cabecera “Duolingo-like” con bloques y curvas suaves */}
+      <View className="w-full h-40 mb-[-56px]">
+        <View className="w-full h-2/3" style={{ backgroundColor: COLORS.blue }} />
+        <View className="w-full h-1/3" style={{ backgroundColor: COLORS.sky }} />
+      </View>
+
+      <View className="w-11/12 bg-white rounded-3xl p-5 shadow-lg">
+        <View className="items-center">
+          {/* Mini logotipo simple estilo “puente” */}
+          <View className="w-28 h-2 rounded-full" style={{ backgroundColor: COLORS.blue }} />
+          <View className="flex-row justify-between w-28 mt-1">
+            <View className="w-2 h-4 rounded-b-md" style={{ backgroundColor: COLORS.green }} />
+            <View className="w-2 h-4 rounded-b-md" style={{ backgroundColor: COLORS.green }} />
+            <View className="w-2 h-4 rounded-b-md" style={{ backgroundColor: COLORS.green }} />
+            <View className="w-2 h-4 rounded-b-md" style={{ backgroundColor: COLORS.green }} />
+          </View>
+          <Text className="mt-3 text-2xl font-extrabold" style={{ color: COLORS.blue }}>
+            EduBridge
+          </Text>
+          <Text className="text-sm mt-1" style={{ color: COLORS.gray }}>
+            Conectando mentes. Creando futuros.
+          </Text>
+        </View>
+
+        {/* Línea separadora suave */}
+        <View className="mt-4 h-[1px] w-full" style={{ backgroundColor: COLORS.sky }} />
+
+        <Text className="mt-4 text-xl font-extrabold" style={{ color: COLORS.ink }}>
+          ¡Hablemos sobre ti! <Text style={{ fontSize: 22 }}>📝</Text>
+        </Text>
+        <Text className="mt-1 text-sm" style={{ color: COLORS.gray }}>
+          Esto nos ayuda a personalizar tu aprendizaje.
+        </Text>
+      </View>
+    </View>
+  );
+
+  const Consent = () => (
+    <View className="mt-2 mb-6 flex-row items-center justify-between rounded-2xl border p-4"
+      style={{ borderColor: COLORS.sky, backgroundColor: COLORS.white }}
+    >
+      <View className="flex-1 pr-3">
+        <Text className="font-semibold" style={{ color: COLORS.blue }}>
+          Consentimiento informado <Text style={{ color: COLORS.accent }}>*</Text>
+        </Text>
+        <Text className="text-sm" style={{ color: COLORS.gray }}>
+          Acepto que EduBridge use estos datos para personalizar el aprendizaje.
+        </Text>
+      </View>
+      <Switch
+        value={form.consent}
+        onValueChange={(v) => setForm({ ...form, consent: v })}
+        thumbColor={form.consent ? COLORS.green : COLORS.white}
+        trackColor={{ true: COLORS.sky, false: COLORS.gray }}
+      />
+    </View>
+  );
+
+  const SubmitBar = () => (
+    <View className="mt-2">
+      <Pressable
+        onPress={onSubmit}
+        disabled={submitting}
+        className="rounded-2xl py-4 items-center"
+        style={{ backgroundColor: submitting ? COLORS.gray : COLORS.blue }}
+      >
+        <Text className="text-white font-semibold text-base">
+          {submitting ? "Enviando..." : "Crear perfil"}
+        </Text>
+      </Pressable>
+
+      {!!requiredMissing.length && (
+        <Text className="mt-3 text-xs" style={{ color: COLORS.accent }}>
+          * Completa los campos obligatorios y activa el consentimiento para continuar.
+        </Text>
+      )}
+    </View>
+  );
+
+  return (
+    <SafeAreaView className="flex-1" style={{ backgroundColor: COLORS.bg }}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingBottom: 32 }}
+        >
+          <Header />
+
+          {/* Contenido principal */}
+          <View className="mt-6 px-5">
+            {/* Tarjeta principal al estilo “Duolingo”: sencilla, aireada */}
+            <View className="bg-white rounded-3xl p-5 shadow-md">
+              <Text className="text-lg font-bold mb-3" style={{ color: COLORS.ink }}>
+                Información básica
+              </Text>
+
+              <Field
+                label="Nombre"
+                required
+                placeholder="Tu nombre y apellidos"
+                value={form.name}
+                onChangeText={(t) => setForm({ ...form, name: t })}
+              />
+
+              <Field
+                label="Edad"
+                required
+                placeholder="Ej. 10"
+                value={form.age}
+                onChangeText={(t) => setForm({ ...form, age: t.replace(/[^0-9]/g, "") })}
+                keyboardType="numeric"
+              />
+
+              <Field
+                label="País de origen"
+                required
+                placeholder="Ej. Honduras, México, Venezuela..."
+                value={form.originCountry}
+                onChangeText={(t) => setForm({ ...form, originCountry: t })}
+              />
+
+              <Field
+                label="País de residencia"
+                required
+                placeholder="Ej. México"
+                value={form.residenceCountry}
+                onChangeText={(t) => setForm({ ...form, residenceCountry: t })}
+              />
+
+              <Field
+                label="Grado o nivel actual"
+                required
+                placeholder="Ej. 5° primaria"
+                value={form.grade}
+                onChangeText={(t) => setForm({ ...form, grade: t })}
+              />
+
+              {/* Idioma preferido: lista de chips (selección única) */}
+              <View className="mb-2">
+                <Text className="mb-2 font-semibold text-base" style={{ color: COLORS.blue }}>
+                  Idioma preferido <Text style={{ color: COLORS.accent }}>*</Text>
+                </Text>
+                <View className="flex-row flex-wrap">
+                  {[
+                    "Español",
+                    "Inglés",
+                    "Portugués",
+                    "Francés",
+                    "Alemán",
+                    "Italiano",
+                    "Otro",
+                  ].map((l) => (
+                    <LangChip
+                      key={l}
+                      label={l as Lang}
+                      active={form.language === l}
+                      onPress={() => setForm({ ...form, language: l as Lang })}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              <Consent />
+              <SubmitBar />
+            </View>
+
+            {/* Nota inferior */}
+            <View className="items-center mt-5">
+              <Text className="text-xs" style={{ color: COLORS.gray }}>
+                © {new Date().getFullYear()} EduBridge
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
