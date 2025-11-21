@@ -61,6 +61,8 @@ const sections: CulturalSection[] = [
     ],
     tip: "Todas las escuelas son diferentes, pero todas quieren que aprendas.",
   },
+
+
   {
     id: 5,
     emoji: "🗣️",
