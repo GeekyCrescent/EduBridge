@@ -3,7 +3,7 @@ import axios from 'axios';
 // Cambia esta URL según donde esté corriendo tu backend
 // Para localhost: 'http://localhost:5000'
 // Para dispositivo físico/emulador: usa tu IP local
-const API_BASE_URL = 'http://10.48.250.234:5000';
+const API_BASE_URL = 'http://192.168.1.74:5000';
 
 export interface PerfilEstudiante {
   nombre: string;
