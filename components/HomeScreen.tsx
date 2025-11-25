@@ -1,247 +1,564 @@
-// App.tsx
-import React from "react";
-import { SafeAreaView, ScrollView, View, Text } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { ScrollView, View, StyleSheet, Animated, Dimensions } from "react-native";
+import { Title, Paragraph, Text, Surface, IconButton } from "react-native-paper";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { 
+  MascotKai, 
+  AdventureCard, 
+  MissionButton, 
+  XPBar, 
+  DialogBubble,
+  AchievementBadge 
+} from './ui/EduBridgeUI';
 
-type CulturalSection = {
-  id: number;
-  emoji: string;
+const { width } = Dimensions.get('window');
+
+interface Adventure {
+  id: string;
   title: string;
-  subtitle?: string;
-  items: string[];
-  tip?: string;
-};
+  subtitle: string;
+  icon: string;
+  color: string;
+  progress: number;
+  stars: number;
+  maxStars: number;
+  isLocked: boolean;
+  category: string;
+}
 
-const sections: CulturalSection[] = [
+const adventures: Adventure[] = [
   {
-    id: 1,
-    emoji: "🗺️",
-    title: "Conoce tu nuevo país",
-    subtitle: "Descubre dónde estás ahora",
-    items: [
-      "Este es el país donde vives ahora.",
-      "Aquí te mostramos en qué región o estado estás.",
-      "Verás la bandera y sabrás qué representa.",
-    ],
-    tip: "Vamos a explorar tu nuevo hogar paso a paso. 🎯",
+    id: '1',
+    title: '🗺️ Conoce tu nuevo país',
+    subtitle: 'Descubre dónde estás ahora',
+    icon: 'map-marker-radius',
+    color: '#10b981',
+    progress: 1,
+    stars: 3,
+    maxStars: 3,
+    isLocked: false,
+    category: 'orientacion',
   },
   {
-    id: 2,
-    emoji: "☎️",
-    title: "Números importantes",
-    subtitle: "Por si necesitas ayuda",
-    items: [
-      "Policía: si algo te asusta o es peligroso.",
-      "Ambulancia: si alguien está muy lastimado.",
-      "Bomberos: si hay fuego o mucho humo.",
-      "Línea para niños: si necesitas hablar con alguien.",
-    ],
-    tip: "Es mejor tenerlos guardados aunque nunca los uses. 💚",
+    id: '2',
+    title: '📞 Números importantes',
+    subtitle: 'Por si necesitas ayuda',
+    icon: 'phone-alert',
+    color: '#ef4444',
+    progress: 1,
+    stars: 3,
+    maxStars: 3,
+    isLocked: false,
+    category: 'seguridad',
   },
   {
-    id: 3,
-    emoji: "🧭",
-    title: "Cómo moverte sin perderte",
-    subtitle: "Calles, direcciones y señales",
-    items: [
-      "Aprende cómo se leen las calles y los números de las casas.",
-      "Reconoce señales para cruzar la calle con seguridad.",
-      "Si te pierdes: respira, quédate en un lugar seguro y pide ayuda a un adulto.",
-    ],
-    tip: "Perderse a veces pasa. Encontrarte también. 🙂",
+    id: '3',
+    title: '🚌 Cómo moverte',
+    subtitle: 'Calles, direcciones y señales',
+    icon: 'bus',
+    color: '#0ea5e9',
+    progress: 0.6,
+    stars: 2,
+    maxStars: 3,
+    isLocked: false,
+    category: 'transporte',
   },
   {
-    id: 4,
-    emoji: "🏫",
-    title: "Tu nueva escuela",
-    subtitle: "Clases, tareas y profes",
-    items: [
-      "Conoce cómo se organizan las clases en tu nueva escuela.",
-      "Descubre qué cosas suelen pedir de tarea.",
-      "Aprende cómo pedir ayuda a tus maestros.",
-    ],
-    tip: "Todas las escuelas son diferentes, pero todas quieren que aprendas.",
-  },
-
-
-  {
-    id: 5,
-    emoji: "🗣️",
-    title: "Cultura y costumbres",
-    subtitle: "Cómo saluda y habla la gente",
-    items: [
-      "Aprende formas comunes de saludar y despedirte.",
-      "Descubre qué cosas se consideran respetuosas.",
-      "Practica frases para pedir que te expliquen algo de nuevo.",
-    ],
-    tip: "No hay preguntas tontas, solo respuestas útiles. 😉",
+    id: '4',
+    title: '🏫 Tu nueva escuela',
+    subtitle: 'Clases, tareas y profes',
+    icon: 'school',
+    color: '#8b5cf6',
+    progress: 0.3,
+    stars: 1,
+    maxStars: 3,
+    isLocked: false,
+    category: 'escuela',
   },
   {
-    id: 6,
-    emoji: "👀",
-    title: "Cosas que verás mucho",
-    subtitle: "Dinero, transporte y tiendas",
-    items: [
-      "Conoce cómo se ve el dinero del país.",
-      "Aprende cómo funcionan los autobuses o el metro.",
-      "Descubre cómo se organizan las tiendas y supermercados.",
-    ],
-    tip: "Si algo no sabes cómo funciona… ¡pregunta! A muchos les gusta ayudar.",
+    id: '5',
+    title: '👋 Cultura y costumbres',
+    subtitle: 'Cómo saluda la gente',
+    icon: 'hand-wave',
+    color: '#ec4899',
+    progress: 0.4,
+    stars: 1,
+    maxStars: 3,
+    isLocked: false,
+    category: 'cultura',
   },
   {
-    id: 7,
-    emoji: "🌤️",
-    title: "Clima y ropa",
-    subtitle: "Qué usar según el tiempo",
-    items: [
-      "Ideas de qué usar cuando hace mucho frío.",
-      "Consejos para cuidarte cuando hace mucho calor.",
-      "Qué hacer si llueve muy fuerte en tu ciudad.",
-    ],
-    tip: "No existe el clima malo, solo ropa equivocada. 😄",
+    id: '6',
+    title: '🛒 Cosas que verás mucho',
+    subtitle: 'Dinero, transporte y tiendas',
+    icon: 'cart',
+    color: '#f59e0b',
+    progress: 0,
+    stars: 0,
+    maxStars: 3,
+    isLocked: false,
+    category: 'vida-diaria',
   },
   {
-    id: 8,
-    emoji: "🧑‍🤝‍🧑",
-    title: "Cómo hacer amigos",
-    subtitle: "Frases para acercarte a los demás",
-    items: [
-      "Frases para invitar a alguien a jugar.",
-      "Cómo presentarte y preguntar el nombre.",
-      "Cómo pedir sentarte con alguien en clase.",
-    ],
-    tip: "Muchos amigos comienzan con una sola palabra: “Hola”.",
+    id: '7',
+    title: '❄️ Clima y ropa',
+    subtitle: 'Qué usar según el tiempo',
+    icon: 'weather-partly-cloudy',
+    color: '#06b6d4',
+    progress: 0,
+    stars: 0,
+    maxStars: 3,
+    isLocked: false,
+    category: 'clima',
   },
   {
-    id: 9,
-    emoji: "🏥",
-    title: "Salud y lugares importantes",
-    subtitle: "Hospitales, farmacias y más",
-    items: [
-      "Qué es un hospital y cuándo ir a urgencias.",
-      "Cómo reconocer una farmacia para conseguir medicina.",
-      "Otros lugares útiles como bibliotecas o centros comunitarios.",
-    ],
-    tip: "Si algo duele o te preocupa, avisa siempre a un adulto.",
-  },
-  {
-    id: 10,
-    emoji: "🔤",
-    title: "Frases útiles",
-    subtitle: "Para el idioma de tu nuevo hogar",
-    items: [
-      "Hola, me llamo…",
-      "No entiendo.",
-      "¿Puedes ayudarme, por favor?",
-      "¿Dónde está…?",
-      "Gracias.",
-    ],
-    tip: "Practicar estas frases te hará más seguro cada día. 💪",
+    id: '8',
+    title: '🤝 Cómo hacer amigos',
+    subtitle: 'Frases para acercarte',
+    icon: 'account-heart',
+    color: '#f43f5e',
+    progress: 0,
+    stars: 0,
+    maxStars: 3,
+    isLocked: true,
+    category: 'social',
   },
 ];
 
+const welcomeMessages = [
+  "¡Hola! Soy Kai, tu guía en esta aventura 🌍",
+  "Juntos vamos a explorar tu nuevo hogar",
+  "¿Listo para aprender cosas increíbles?",
+  "Cada día es una nueva aventura 💚",
+];
+
+const dailyTips = [
+  { message: "¿Sabías que decir 'por favor' abre muchas puertas?", variant: 'tip' as const },
+  { message: "¡Genial! Ya completaste 2 aventuras hoy 🎉", variant: 'celebration' as const },
+  { message: "¿Necesitas ayuda con algo específico?", variant: 'question' as const },
+];
+
 export default function HomeScreen() {
+  const [currentMessage, setCurrentMessage] = useState(0);
+  const [showTip, setShowTip] = useState(false);
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const mascotAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animación de entrada
+    Animated.stagger(200, [
+      Animated.spring(headerAnim, {
+        toValue: 1,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.spring(mascotAnim, {
+        toValue: 1,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Rotar mensajes de bienvenida
+    const messageInterval = setInterval(() => {
+      setCurrentMessage((prev) => (prev + 1) % welcomeMessages.length);
+    }, 4000);
+
+    // Mostrar tip después de 2 segundos
+    setTimeout(() => setShowTip(true), 2000);
+
+    return () => clearInterval(messageInterval);
+  }, []);
+
+  const completedCount = adventures.filter(a => a.progress >= 1).length;
+  const totalXP = adventures.reduce((acc, a) => acc + Math.round(a.progress * 100), 0);
+
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="px-5 pt-4 pb-3 border-b border-sky-100 bg-white">
-        <Text className="text-xs font-semibold text-sky-700 uppercase tracking-[2px]">
-          EduBridge
-        </Text>
-        <Text className="mt-1 text-2xl font-extrabold text-slate-900">
-          Guía cultural
-        </Text>
-        <Text className="mt-1 text-sm text-slate-500">
-          Pensado para niños que llegan a un país nuevo. 🌍
-        </Text>
-      </View>
+    <View style={styles.container}>
+      {/* Header con gradiente visual */}
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            opacity: headerAnim,
+            transform: [
+              {
+                translateY: headerAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-50, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        {/* Decoración de fondo */}
+        <View style={styles.headerDecoration}>
+          <View style={[styles.decorCircle, styles.decorCircle1]} />
+          <View style={[styles.decorCircle, styles.decorCircle2]} />
+          <View style={[styles.decorCircle, styles.decorCircle3]} />
+        </View>
+
+        <View style={styles.headerContent}>
+          {/* Logo y título */}
+          <View style={styles.brandContainer}>
+            <View style={styles.logoContainer}>
+              <MaterialCommunityIcons name="bridge" size={28} color="#10b981" />
+            </View>
+            <View>
+              <Text style={styles.brandName}>EduBridge</Text>
+              <Text style={styles.brandTagline}>Tu puente al nuevo hogar</Text>
+            </View>
+          </View>
+
+          {/* Stats rápidos */}
+          <View style={styles.quickStats}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{completedCount}</Text>
+              <Text style={styles.statLabel}>completadas</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{totalXP}</Text>
+              <Text style={styles.statLabel}>XP total</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Barra de XP */}
+        <XPBar currentXP={totalXP} maxXP={1000} level={3} color="#10b981" />
+      </Animated.View>
 
       <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 16 }}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Pequeño “progress” estilo Duolingo */}
-        <View className="mb-4 flex-row items-center justify-between">
-          <View className="flex-1 mr-3">
-            <View className="h-2 w-full rounded-full bg-sky-100 overflow-hidden">
-              <View className="h-full w-3/4 rounded-full bg-sky-500" />
+        {/* Sección de bienvenida con mascota */}
+        <Animated.View
+          style={[
+            styles.welcomeSection,
+            {
+              opacity: mascotAnim,
+              transform: [{ scale: mascotAnim }],
+            },
+          ]}
+        >
+          <Surface style={styles.welcomeCard}>
+            <View style={styles.welcomeContent}>
+              <MascotKai 
+                mood="waving" 
+                size={100} 
+                message={welcomeMessages[currentMessage]}
+              />
             </View>
-            <Text className="mt-1 text-[11px] text-slate-500">
-              10 módulos culturales · Progreso: 7/10 completados
-            </Text>
+
+            {/* Botón de misión diaria */}
+            <View style={styles.dailyMissionContainer}>
+              <MissionButton
+                label="Misión del día"
+                icon="star-circle"
+                color="#fbbf24"
+                pulse
+                onPress={() => console.log('Misión diaria')}
+              />
+            </View>
+          </Surface>
+        </Animated.View>
+
+        {/* Tip del día */}
+        {showTip && (
+          <Animated.View
+            style={{
+              opacity: mascotAnim,
+            }}
+          >
+            <DialogBubble
+              message={dailyTips[0].message}
+              variant={dailyTips[0].variant}
+              speaker="kai"
+            />
+          </Animated.View>
+        )}
+
+        {/* Título de sección */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionTitleContainer}>
+            <MaterialCommunityIcons name="compass-rose" size={24} color="#10b981" />
+            <Title style={styles.sectionTitle}>Tus aventuras</Title>
           </View>
-          <View className="px-3 py-1 rounded-full bg-sky-50 border border-sky-100">
-            <Text className="text-[11px] font-semibold text-sky-700">
-              Nivel cultural A1
-            </Text>
-          </View>
+          <Text style={styles.sectionSubtitle}>
+            {completedCount} de {adventures.length} completadas
+          </Text>
         </View>
 
-        {sections.map((section) => (
-          <View
-            key={section.id}
-            className="mb-4 rounded-3xl bg-sky-50 border border-sky-100 p-4 shadow-sm"
+        {/* Lista de aventuras */}
+        {adventures.map((adventure, index) => (
+          <Animated.View
+            key={adventure.id}
+            style={{
+              opacity: headerAnim,
+              transform: [
+                {
+                  translateX: headerAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [50, 0],
+                  }),
+                },
+              ],
+            }}
           >
-            {/* Header de la tarjeta */}
-            <View className="flex-row items-center mb-3">
-              <View className="mr-3 h-11 w-11 rounded-2xl bg-sky-100 items-center justify-center">
-                <Text style={{ fontSize: 26 }}>{section.emoji}</Text>
-              </View>
-              <View className="flex-1">
-                <View className="flex-row items-center justify-between">
-                  <Text className="text-[11px] font-semibold text-sky-700">
-                    MÓDULO {section.id}
-                  </Text>
-                  <View className="px-2 py-[2px] rounded-full bg-white border border-sky-100">
-                    <Text className="text-[10px] font-semibold text-sky-600">
-                      Básico
-                    </Text>
-                  </View>
-                </View>
-                <Text className="mt-[2px] text-[16px] font-extrabold text-slate-900">
-                  {section.title}
-                </Text>
-                {section.subtitle && (
-                  <Text className="text-[12px] text-slate-500 mt-[2px]">
-                    {section.subtitle}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            {/* Contenido principal */}
-            <View className="mt-1">
-              {section.items.map((item, index) => (
-                <View key={index} className="flex-row items-start mb-1.5">
-                  <Text className="mt-[1px] mr-2 text-sky-600 text-xs">•</Text>
-                  <Text className="flex-1 text-[13px] leading-5 text-slate-700">
-                    {item}
-                  </Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Tip estilo Duolingo */}
-            {section.tip && (
-              <View className="mt-3 rounded-2xl bg-sky-100/80 px-3 py-2">
-                <Text className="text-[11px] font-semibold text-sky-800">
-                  TIP ✨
-                </Text>
-                <Text className="text-[12px] text-sky-900 mt-[2px]">
-                  {section.tip}
-                </Text>
-              </View>
-            )}
-          </View>
+            <AdventureCard
+              title={adventure.title}
+              subtitle={adventure.subtitle}
+              icon={adventure.icon}
+              color={adventure.color}
+              progress={adventure.progress}
+              stars={adventure.stars}
+              maxStars={adventure.maxStars}
+              isLocked={adventure.isLocked}
+              onPress={() => console.log('Abrir aventura:', adventure.title)}
+            />
+          </Animated.View>
         ))}
 
-        <View className="mt-4 mb-8 items-center">
-          <View className="px-4 py-2 rounded-full bg-sky-500 shadow">
-            <Text className="text-xs font-semibold text-white">
-              ¡Listo para seguir aprendiendo sobre tu nuevo hogar! 💚
-            </Text>
+        {/* Sección de logros recientes */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionTitleContainer}>
+            <MaterialCommunityIcons name="trophy" size={24} color="#fbbf24" />
+            <Title style={styles.sectionTitle}>Tus logros</Title>
           </View>
         </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.achievementsRow}
+        >
+          <AchievementBadge
+            icon="map-check"
+            title="Explorador"
+            description="Primera aventura"
+            earned={true}
+            rarity="common"
+          />
+          <AchievementBadge
+            icon="phone-check"
+            title="Preparado"
+            description="Números guardados"
+            earned={true}
+            rarity="rare"
+          />
+          <AchievementBadge
+            icon="star-face"
+            title="Estrella"
+            description="3 estrellas"
+            earned={true}
+            rarity="epic"
+          />
+          <AchievementBadge
+            icon="crown"
+            title="Leyenda"
+            description="Todas completadas"
+            earned={false}
+            rarity="legendary"
+          />
+        </ScrollView>
+
+        {/* Mensaje motivacional final */}
+        <Surface style={styles.motivationalCard}>
+          <View style={styles.motivationalContent}>
+            <MaterialCommunityIcons name="heart" size={40} color="#f43f5e" />
+            <Title style={styles.motivationalTitle}>¡Vas increíble!</Title>
+            <Paragraph style={styles.motivationalText}>
+              Cada paso que das te acerca más a sentirte como en casa.
+              Recuerda: ser diferente es tu superpoder 🦸‍♂️
+            </Paragraph>
+            <MissionButton
+              label="Seguir explorando"
+              icon="arrow-right"
+              color="#10b981"
+              size="large"
+            />
+          </View>
+        </Surface>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+  },
+  header: {
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    overflow: 'hidden',
+  },
+  headerDecoration: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  decorCircle: {
+    position: 'absolute',
+    borderRadius: 100,
+    opacity: 0.1,
+  },
+  decorCircle1: {
+    width: 150,
+    height: 150,
+    backgroundColor: '#10b981',
+    top: -50,
+    right: -30,
+  },
+  decorCircle2: {
+    width: 100,
+    height: 100,
+    backgroundColor: '#0ea5e9',
+    top: 20,
+    left: -40,
+  },
+  decorCircle3: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#8b5cf6',
+    bottom: -20,
+    right: 50,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#10b981' + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  brandName: {
+    color: '#f1f5f9',
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  brandTagline: {
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+  quickStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#334155',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 16,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    color: '#10b981',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  statLabel: {
+    color: '#94a3b8',
+    fontSize: 10,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#475569',
+    marginHorizontal: 16,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+  },
+  welcomeSection: {
+    marginBottom: 20,
+  },
+  welcomeCard: {
+    backgroundColor: '#1e293b',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  welcomeContent: {
+    marginBottom: 20,
+  },
+  dailyMissionContainer: {
+    width: '100%',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    color: '#f1f5f9',
+    marginLeft: 8,
+    fontSize: 20,
+  },
+  sectionSubtitle: {
+    color: '#64748b',
+    fontSize: 12,
+  },
+  achievementsRow: {
+    paddingVertical: 8,
+    gap: 16,
+  },
+  motivationalCard: {
+    backgroundColor: '#1e293b',
+    borderRadius: 24,
+    marginTop: 24,
+    marginBottom: 32,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  motivationalContent: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  motivationalTitle: {
+    color: '#f1f5f9',
+    marginTop: 16,
+    marginBottom: 8,
+    fontSize: 24,
+  },
+  motivationalText: {
+    color: '#94a3b8',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+});
