@@ -1,868 +1,797 @@
-import React, { useState, useEffect, useRef } from "react";
-import { View, ScrollView, StyleSheet, Animated, Pressable, Dimensions } from "react-native";
+import React, { useRef, useEffect, useState } from 'react';
 import {
-  Title,
-  Paragraph,
-  Surface,
-  ProgressBar,
-  Text,
-  Button,
-  Chip,
-  IconButton,
-} from "react-native-paper";
+  View,
+  StyleSheet,
+  Dimensions,
+  TouchableOpacity,
+  Animated,
+  ScrollView,
+  Modal,
+} from 'react-native';
+import { Text, Surface } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Svg, { Line, Circle } from 'react-native-svg';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-interface Skill {
+// ==================== TYPES ====================
+type SkillNode = {
   id: string;
-  name: string;
+  title: string;
   description: string;
   icon: string;
-  level: number;
-  maxLevel: number;
-  category: 'cultural' | 'idioma' | 'academico' | 'social';
   unlocked: boolean;
-  xp: number;
-  maxXp: number;
-  prerequisites: string[];
-}
+  xpRequired: number;
+  xpCurrent: number;
+  branch: string;
+  level: number; // 0 = center, 1, 2, 3 = outer levels
+  angle: number; // angle in degrees from center
+};
 
-const skills: Skill[] = [
-  {
-    id: 'orientacion',
-    name: 'Orientación básica',
-    description: 'Conoce tu nuevo país y ciudad',
-    icon: 'compass',
-    level: 3,
-    maxLevel: 5,
-    category: 'cultural',
-    unlocked: true,
-    xp: 180,
-    maxXp: 200,
-    prerequisites: [],
-  },
-  {
-    id: 'emergencias',
-    name: 'Números de emergencia',
-    description: 'Sabe cuándo y cómo pedir ayuda',
-    icon: 'phone-alert',
-    level: 5,
-    maxLevel: 5,
-    category: 'cultural',
-    unlocked: true,
-    xp: 200,
-    maxXp: 200,
-    prerequisites: ['orientacion'],
-  },
-  {
-    id: 'transporte',
-    name: 'Transporte público',
-    description: 'Usa autobuses y metro con confianza',
-    icon: 'bus',
-    level: 2,
-    maxLevel: 5,
-    category: 'cultural',
-    unlocked: true,
-    xp: 80,
-    maxXp: 200,
-    prerequisites: ['orientacion'],
-  },
-  {
-    id: 'saludos',
-    name: 'Saludos básicos',
-    description: 'Di hola y adiós en el nuevo idioma',
-    icon: 'hand-wave',
-    level: 4,
-    maxLevel: 5,
-    category: 'idioma',
-    unlocked: true,
-    xp: 160,
-    maxXp: 200,
-    prerequisites: [],
-  },
-  {
-    id: 'conversacion',
-    name: 'Conversación simple',
-    description: 'Habla sobre ti y tus intereses',
-    icon: 'chat',
-    level: 2,
-    maxLevel: 5,
-    category: 'idioma',
-    unlocked: true,
-    xp: 90,
-    maxXp: 200,
-    prerequisites: ['saludos'],
-  },
-  {
-    id: 'escuela',
-    name: 'Rutinas escolares',
-    description: 'Comprende el sistema educativo',
-    icon: 'school',
-    level: 3,
-    maxLevel: 5,
-    category: 'academico',
-    unlocked: true,
-    xp: 140,
-    maxXp: 200,
-    prerequisites: ['saludos'],
-  },
-  {
-    id: 'matematicas',
-    name: 'Matemáticas adaptadas',
-    description: 'Aprende con ejemplos culturales',
-    icon: 'calculator',
-    level: 1,
-    maxLevel: 5,
-    category: 'academico',
-    unlocked: true,
-    xp: 45,
-    maxXp: 200,
-    prerequisites: ['escuela'],
-  },
-  {
-    id: 'hacer-amigos',
-    name: 'Hacer amigos',
-    description: 'Técnicas para conectar con otros',
-    icon: 'account-group',
-    level: 2,
-    maxLevel: 5,
-    category: 'social',
-    unlocked: true,
-    xp: 75,
-    maxXp: 200,
-    prerequisites: ['conversacion'],
-  },
-  {
-    id: 'trabajo-equipo',
-    name: 'Trabajo en equipo',
-    description: 'Colabora en proyectos grupales',
-    icon: 'account-multiple',
-    level: 1,
-    maxLevel: 5,
-    category: 'social',
-    unlocked: false,
-    xp: 0,
-    maxXp: 200,
-    prerequisites: ['hacer-amigos', 'escuela'],
-  },
-  {
-    id: 'presentaciones',
-    name: 'Presentaciones públicas',
-    description: 'Habla frente a la clase con seguridad',
-    icon: 'presentation',
-    level: 0,
-    maxLevel: 5,
-    category: 'academico',
-    unlocked: false,
-    xp: 0,
-    maxXp: 200,
-    prerequisites: ['conversacion', 'trabajo-equipo'],
-  },
+type Branch = {
+  id: string;
+  name: string;
+  color: string;
+  glowColor: string;
+  icon: string;
+  angle: number; // base angle for this branch
+};
+
+// ==================== DATA ====================
+const BRANCHES: Branch[] = [
+  { id: 'culture', name: 'Culture', color: '#ef4444', glowColor: '#fca5a5', icon: '🎭', angle: 90 },
+  { id: 'language', name: 'Language', color: '#22d3ee', glowColor: '#a5f3fc', icon: '💬', angle: 30 },
+  { id: 'social', name: 'Social', color: '#22c55e', glowColor: '#86efac', icon: '🤝', angle: -30 },
+  { id: 'navigation', name: 'Navigation', color: '#a855f7', glowColor: '#d8b4fe', icon: '🧭', angle: -90 },
+  { id: 'academic', name: 'Academic', color: '#eab308', glowColor: '#fde047', icon: '📚', angle: -150 },
+  { id: 'safety', name: 'Safety', color: '#ec4899', glowColor: '#f9a8d4', icon: '🛡️', angle: 150 },
 ];
 
-// Componente de tarjeta animada
-const AnimatedSkillCard = ({ 
+const SKILLS: SkillNode[] = [
+  // Center node
+  { id: 'center', title: 'Your Journey', description: 'Start your adventure in a new country', icon: '🌟', unlocked: true, xpRequired: 0, xpCurrent: 0, branch: 'center', level: 0, angle: 0 },
+  
+  // Culture Branch (Red) - angle 90
+  { id: 'culture-1', title: 'Greetings', description: 'Learn how people say hello', icon: '👋', unlocked: true, xpRequired: 50, xpCurrent: 50, branch: 'culture', level: 1, angle: 90 },
+  { id: 'culture-2', title: 'Traditions', description: 'Discover local celebrations', icon: '🎉', unlocked: true, xpRequired: 100, xpCurrent: 75, branch: 'culture', level: 2, angle: 90 },
+  { id: 'culture-3', title: 'Customs', description: 'Understand daily habits', icon: '🏠', unlocked: false, xpRequired: 150, xpCurrent: 0, branch: 'culture', level: 3, angle: 90 },
+  { id: 'culture-2b', title: 'Holidays', description: 'Learn about special days', icon: '🎄', unlocked: false, xpRequired: 120, xpCurrent: 0, branch: 'culture', level: 2, angle: 110 },
+  
+  // Language Branch (Cyan) - angle 30
+  { id: 'language-1', title: 'Basic Words', description: 'Essential vocabulary', icon: '📝', unlocked: true, xpRequired: 50, xpCurrent: 50, branch: 'language', level: 1, angle: 30 },
+  { id: 'language-2', title: 'Phrases', description: 'Common expressions', icon: '💭', unlocked: true, xpRequired: 100, xpCurrent: 100, branch: 'language', level: 2, angle: 30 },
+  { id: 'language-3', title: 'Conversations', description: 'Talk with confidence', icon: '🗣️', unlocked: false, xpRequired: 150, xpCurrent: 0, branch: 'language', level: 3, angle: 30 },
+  { id: 'language-2b', title: 'Numbers', description: 'Count and calculate', icon: '🔢', unlocked: true, xpRequired: 80, xpCurrent: 80, branch: 'language', level: 2, angle: 50 },
+  { id: 'language-3b', title: 'Reading', description: 'Understand written text', icon: '📖', unlocked: false, xpRequired: 200, xpCurrent: 0, branch: 'language', level: 3, angle: 10 },
+  
+  // Social Branch (Green) - angle -30
+  { id: 'social-1', title: 'Making Friends', description: 'How to approach others', icon: '😊', unlocked: true, xpRequired: 50, xpCurrent: 50, branch: 'social', level: 1, angle: -30 },
+  { id: 'social-2', title: 'Playground', description: 'Games and activities', icon: '⚽', unlocked: true, xpRequired: 100, xpCurrent: 60, branch: 'social', level: 2, angle: -30 },
+  { id: 'social-3', title: 'Teamwork', description: 'Work together with others', icon: '🤜', unlocked: false, xpRequired: 150, xpCurrent: 0, branch: 'social', level: 3, angle: -30 },
+  { id: 'social-2b', title: 'Kindness', description: 'Being nice to everyone', icon: '💚', unlocked: false, xpRequired: 90, xpCurrent: 0, branch: 'social', level: 2, angle: -10 },
+  
+  // Navigation Branch (Purple) - angle -90
+  { id: 'navigation-1', title: 'My School', description: 'Find your way around', icon: '🏫', unlocked: true, xpRequired: 50, xpCurrent: 50, branch: 'navigation', level: 1, angle: -90 },
+  { id: 'navigation-2', title: 'My City', description: 'Explore your neighborhood', icon: '🏙️', unlocked: false, xpRequired: 100, xpCurrent: 30, branch: 'navigation', level: 2, angle: -90 },
+  { id: 'navigation-3', title: 'Transport', description: 'Buses, trains and more', icon: '🚌', unlocked: false, xpRequired: 150, xpCurrent: 0, branch: 'navigation', level: 3, angle: -90 },
+  { id: 'navigation-2b', title: 'Street Signs', description: 'Read important signs', icon: '🚸', unlocked: false, xpRequired: 80, xpCurrent: 0, branch: 'navigation', level: 2, angle: -70 },
+  
+  // Academic Branch (Yellow) - angle -150
+  { id: 'academic-1', title: 'Classroom', description: 'School rules and routines', icon: '✏️', unlocked: true, xpRequired: 50, xpCurrent: 50, branch: 'academic', level: 1, angle: -150 },
+  { id: 'academic-2', title: 'Homework', description: 'Complete assignments', icon: '📓', unlocked: true, xpRequired: 100, xpCurrent: 100, branch: 'academic', level: 2, angle: -150 },
+  { id: 'academic-3', title: 'Tests', description: 'Prepare for exams', icon: '📋', unlocked: false, xpRequired: 150, xpCurrent: 0, branch: 'academic', level: 3, angle: -150 },
+  { id: 'academic-2b', title: 'Subjects', description: 'Math, science and more', icon: '🔬', unlocked: false, xpRequired: 120, xpCurrent: 0, branch: 'academic', level: 2, angle: -130 },
+  { id: 'academic-3b', title: 'Projects', description: 'Create amazing work', icon: '🎨', unlocked: false, xpRequired: 180, xpCurrent: 0, branch: 'academic', level: 3, angle: -170 },
+  
+  // Safety Branch (Pink) - angle 150
+  { id: 'safety-1', title: 'Emergency', description: 'Important numbers', icon: '📞', unlocked: true, xpRequired: 50, xpCurrent: 50, branch: 'safety', level: 1, angle: 150 },
+  { id: 'safety-2', title: 'Health', description: 'Stay healthy and safe', icon: '🏥', unlocked: false, xpRequired: 100, xpCurrent: 20, branch: 'safety', level: 2, angle: 150 },
+  { id: 'safety-3', title: 'First Aid', description: 'Basic help skills', icon: '🩹', unlocked: false, xpRequired: 150, xpCurrent: 0, branch: 'safety', level: 3, angle: 150 },
+  { id: 'safety-2b', title: 'Strangers', description: 'Staying safe with others', icon: '⚠️', unlocked: false, xpRequired: 90, xpCurrent: 0, branch: 'safety', level: 2, angle: 170 },
+];
+
+// ==================== HELPER FUNCTIONS ====================
+const polarToCartesian = (angle: number, radius: number, centerX: number, centerY: number) => {
+  const angleRad = (angle - 90) * (Math.PI / 180);
+  return {
+    x: centerX + radius * Math.cos(angleRad),
+    y: centerY + radius * Math.sin(angleRad),
+  };
+};
+
+const getBranchColor = (branchId: string): string => {
+  const branch = BRANCHES.find(b => b.id === branchId);
+  return branch?.color || '#ffffff';
+};
+
+const getGlowColor = (branchId: string): string => {
+  const branch = BRANCHES.find(b => b.id === branchId);
+  return branch?.glowColor || '#ffffff';
+};
+
+// ==================== COMPONENTS ====================
+
+// Skill Node Component
+const SkillNodeComponent = ({ 
   skill, 
-  index, 
-  isSelected, 
-  onPress,
-  getCategoryColor,
-  getCategoryLabel 
-}: {
-  skill: Skill;
-  index: number;
-  isSelected: boolean;
+  x, 
+  y, 
+  onPress 
+}: { 
+  skill: SkillNode; 
+  x: number; 
+  y: number;
   onPress: () => void;
-  getCategoryColor: (category: string) => string;
-  getCategoryLabel: (category: string) => string;
 }) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
-  const expandAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const color = skill.branch === 'center' ? '#ffffff' : getBranchColor(skill.branch);
+  const glowColor = skill.branch === 'center' ? '#ffffff' : getGlowColor(skill.branch);
+  const size = skill.level === 0 ? 80 : 56;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        delay: index * 80,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        delay: index * 80,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
+    if (skill.unlocked) {
+      // Pulse animation for unlocked nodes
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.1,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
 
-  useEffect(() => {
-    Animated.spring(expandAnim, {
-      toValue: isSelected ? 1 : 0,
-      friction: 10,
-      tension: 50,
-      useNativeDriver: false,
-    }).start();
-  }, [isSelected]);
-
-  const progress = (skill.xp / skill.maxXp) * 100;
-  const categoryColor = getCategoryColor(skill.category);
-
-  const expandedHeight = expandAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 160],
-  });
+      // Glow animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0.3,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+  }, [skill.unlocked]);
 
   return (
-    <Animated.View
+    <TouchableOpacity
       style={[
-        styles.cardContainer,
+        styles.skillNode,
         {
-          opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }],
+          left: x - size / 2,
+          top: y - size / 2,
+          width: size,
+          height: size,
         },
       ]}
+      onPress={onPress}
+      activeOpacity={0.8}
     >
-      <Pressable
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.card,
+      {/* Glow effect */}
+      {skill.unlocked && (
+        <Animated.View
+          style={[
+            styles.nodeGlow,
+            {
+              width: size + 20,
+              height: size + 20,
+              borderRadius: (size + 20) / 2,
+              backgroundColor: glowColor,
+              opacity: glowAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.2, 0.5],
+              }),
+              transform: [{ scale: pulseAnim }],
+            },
+          ]}
+        />
+      )}
+      
+      {/* Main node */}
+      <Animated.View
+        style={[
+          styles.nodeInner,
           {
-            borderLeftColor: categoryColor,
-            opacity: skill.unlocked ? (pressed ? 0.9 : 1) : 0.5,
-            transform: [{ scale: pressed ? 0.98 : 1 }],
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            borderColor: skill.unlocked ? color : '#374151',
+            backgroundColor: skill.unlocked ? `${color}20` : '#1f2937',
+            transform: [{ scale: skill.unlocked ? pulseAnim : 1 }],
           },
         ]}
       >
-        <View style={styles.cardContent}>
-          {/* Header de la tarjeta */}
-          <View style={styles.cardHeader}>
-            <Surface style={[styles.iconContainer, { backgroundColor: skill.unlocked ? categoryColor + '20' : '#1e293b' }]}>
-              <MaterialCommunityIcons
-                name={skill.unlocked ? skill.icon as any : 'lock'}
-                size={28}
-                color={skill.unlocked ? categoryColor : '#475569'}
-              />
-            </Surface>
-
-            <View style={styles.cardInfo}>
-              <View style={styles.chipRow}>
-                <Chip
-                  mode="flat"
-                  compact
-                  style={[styles.categoryChip, { backgroundColor: categoryColor + '20' }]}
-                >
-                  <Text style={[styles.categoryChipText, { color: categoryColor }]}>
-                    {getCategoryLabel(skill.category).toUpperCase()}
-                  </Text>
-                </Chip>
-                {skill.unlocked && (
-                  <View style={styles.starsContainer}>
-                    {[...Array(skill.maxLevel)].map((_, i) => (
-                      <MaterialCommunityIcons
-                        key={i}
-                        name={i < skill.level ? 'star' : 'star-outline'}
-                        size={12}
-                        color={i < skill.level ? '#fbbf24' : '#475569'}
-                      />
-                    ))}
-                  </View>
-                )}
-              </View>
-              <Title style={styles.skillName}>{skill.name}</Title>
-              <Paragraph style={styles.skillDescription}>{skill.description}</Paragraph>
-            </View>
-
-            {/* Círculo de progreso */}
-            {skill.unlocked && (
-              <View style={styles.progressCircle}>
-                <View style={[styles.progressCircleInner, { borderColor: categoryColor }]}>
-                  <Text style={[styles.progressText, { color: categoryColor }]}>
-                    {skill.level}/{skill.maxLevel}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* Contenido expandible */}
-          {skill.unlocked && (
-            <Animated.View style={[styles.expandedContent, { maxHeight: expandedHeight, opacity: expandAnim }]}>
-              <View style={styles.divider} />
-              
-              <View style={styles.xpContainer}>
-                <View style={styles.xpLabels}>
-                  <Text style={styles.xpLabel}>Experiencia</Text>
-                  <Text style={[styles.xpValue, { color: categoryColor }]}>
-                    {skill.xp} / {skill.maxXp} XP
-                  </Text>
-                </View>
-                <ProgressBar
-                  progress={skill.xp / skill.maxXp}
-                  color={categoryColor}
-                  style={styles.xpProgressBar}
-                />
-              </View>
-
-              {skill.prerequisites.length > 0 && (
-                <View style={styles.prerequisitesContainer}>
-                  <Text style={styles.prerequisitesLabel}>Desbloqueado con:</Text>
-                  <View style={styles.prerequisiteChips}>
-                    {skill.prerequisites.map(prereq => {
-                      const prereqSkill = skills.find(s => s.id === prereq);
-                      return (
-                        <Chip
-                          key={prereq}
-                          compact
-                          icon="check-circle"
-                          style={styles.prereqChip}
-                          textStyle={styles.prereqChipText}
-                        >
-                          {prereqSkill?.name}
-                        </Chip>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-
-              <Button
-                mode="contained"
-                icon="play-circle"
-                style={styles.practiceButton}
-                contentStyle={styles.practiceButtonContent}
-                buttonColor={categoryColor}
-                onPress={() => console.log('Practicar:', skill.name)}
-              >
-                Practicar
-              </Button>
-            </Animated.View>
-          )}
+        {/* Inner circle decoration */}
+        <View
+          style={[
+            styles.nodeInnerCircle,
+            {
+              width: size - 12,
+              height: size - 12,
+              borderRadius: (size - 12) / 2,
+              borderColor: skill.unlocked ? `${color}60` : '#374151',
+            },
+          ]}
+        >
+          <Text style={[styles.nodeIcon, { fontSize: skill.level === 0 ? 32 : 24 }]}>
+            {skill.unlocked ? skill.icon : '🔒'}
+          </Text>
         </View>
-      </Pressable>
-    </Animated.View>
+      </Animated.View>
+
+      {/* Progress ring for partially completed */}
+      {skill.unlocked && skill.xpCurrent < skill.xpRequired && skill.xpRequired > 0 && (
+        <View style={[styles.progressRing, { width: size + 8, height: size + 8 }]}>
+          <View
+            style={[
+              styles.progressArc,
+              {
+                borderColor: color,
+                transform: [{ rotate: `${(skill.xpCurrent / skill.xpRequired) * 360}deg` }],
+              },
+            ]}
+          />
+        </View>
+      )}
+    </TouchableOpacity>
   );
 };
 
-export default function SkillTreeScreen() {
-  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'cultural' | 'idioma' | 'academico' | 'social'>('all');
+// Connection Line Component
+const ConnectionLine = ({ 
+  x1, 
+  y1, 
+  x2, 
+  y2, 
+  color, 
+  unlocked 
+}: { 
+  x1: number; 
+  y1: number; 
+  x2: number; 
+  y2: number;
+  color: string;
+  unlocked: boolean;
+}) => {
+  return (
+    <Svg style={StyleSheet.absoluteFill}>
+      {/* Glow line */}
+      {unlocked && (
+        <Line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={color}
+          strokeWidth={6}
+          opacity={0.3}
+          strokeLinecap="round"
+        />
+      )}
+      {/* Main line */}
+      <Line
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
+        stroke={unlocked ? color : '#374151'}
+        strokeWidth={3}
+        opacity={unlocked ? 1 : 0.5}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+};
+
+// Skill Detail Modal
+const SkillDetailModal = ({ 
+  skill, 
+  visible, 
+  onClose 
+}: { 
+  skill: SkillNode | null; 
+  visible: boolean;
+  onClose: () => void;
+}) => {
+  if (!skill) return null;
   
-  // Animaciones del header
-  const headerAnim = useRef(new Animated.Value(0)).current;
-  const progressAnim = useRef(new Animated.Value(0)).current;
+  const color = skill.branch === 'center' ? '#10b981' : getBranchColor(skill.branch);
+  const progress = skill.xpRequired > 0 ? (skill.xpCurrent / skill.xpRequired) * 100 : 100;
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(headerAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(progressAnim, {
-        toValue: 1,
-        duration: 800,
-        delay: 300,
-        useNativeDriver: false,
-      }),
-    ]).start();
-  }, []);
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity 
+        style={styles.modalOverlay} 
+        activeOpacity={1} 
+        onPress={onClose}
+      >
+        <TouchableOpacity activeOpacity={1}>
+          <Surface style={[styles.modalContent, { borderColor: color }]}>
+            {/* Header */}
+            <View style={[styles.modalHeader, { backgroundColor: `${color}20` }]}>
+              <Text style={styles.modalIcon}>{skill.icon}</Text>
+              <Text style={[styles.modalTitle, { color }]}>{skill.title}</Text>
+            </View>
 
-  const totalXp = skills.reduce((acc, skill) => acc + skill.xp, 0);
-  const totalMaxXp = skills.reduce((acc, skill) => acc + skill.maxXp, 0);
-  const globalProgress = (totalXp / totalMaxXp) * 100;
+            {/* Description */}
+            <Text style={styles.modalDescription}>{skill.description}</Text>
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'cultural': return '#10b981';
-      case 'idioma': return '#0ea5e9';
-      case 'academico': return '#8b5cf6';
-      case 'social': return '#ec4899';
-      default: return '#64748b';
+            {/* Progress */}
+            {skill.xpRequired > 0 && (
+              <View style={styles.modalProgress}>
+                <View style={styles.modalProgressHeader}>
+                  <Text style={styles.modalProgressLabel}>Progress</Text>
+                  <Text style={[styles.modalProgressValue, { color }]}>
+                    {skill.xpCurrent}/{skill.xpRequired} XP
+                  </Text>
+                </View>
+                <View style={styles.modalProgressBar}>
+                  <View 
+                    style={[
+                      styles.modalProgressFill, 
+                      { width: `${progress}%`, backgroundColor: color }
+                    ]} 
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* Status */}
+            <View style={[styles.modalStatus, { backgroundColor: skill.unlocked ? `${color}20` : '#374151' }]}>
+              <MaterialCommunityIcons 
+                name={skill.unlocked ? 'check-circle' : 'lock'} 
+                size={20} 
+                color={skill.unlocked ? color : '#9ca3af'} 
+              />
+              <Text style={[styles.modalStatusText, { color: skill.unlocked ? color : '#9ca3af' }]}>
+                {skill.unlocked ? 'Unlocked' : 'Complete previous skills to unlock'}
+              </Text>
+            </View>
+
+            {/* Action Button */}
+            <TouchableOpacity 
+              style={[
+                styles.modalButton, 
+                { backgroundColor: skill.unlocked ? color : '#374151' }
+              ]}
+              disabled={!skill.unlocked}
+            >
+              <Text style={styles.modalButtonText}>
+                {skill.unlocked ? 'Practice Now' : 'Locked'}
+              </Text>
+              {skill.unlocked && (
+                <MaterialCommunityIcons name="play" size={20} color="white" />
+              )}
+            </TouchableOpacity>
+          </Surface>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
+// ==================== MAIN SCREEN ====================
+export default function SkillTreeScreen() {
+  const [selectedSkill, setSelectedSkill] = useState<SkillNode | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  
+  // Tree dimensions
+  const TREE_WIDTH = 600;
+  const TREE_HEIGHT = 700;
+  const CENTER_X = TREE_WIDTH / 2;
+  const CENTER_Y = TREE_HEIGHT / 2;
+  
+  // Radius for each level
+  const LEVEL_RADIUS = [0, 100, 180, 260];
+
+  // Calculate positions for all skills
+  const getSkillPosition = (skill: SkillNode) => {
+    if (skill.level === 0) {
+      return { x: CENTER_X, y: CENTER_Y };
     }
+    return polarToCartesian(skill.angle, LEVEL_RADIUS[skill.level], CENTER_X, CENTER_Y);
   };
 
-  const getCategoryLabel = (category: string) => {
-    switch (category) {
-      case 'cultural': return 'Cultural';
-      case 'idioma': return 'Idioma';
-      case 'academico': return 'Académico';
-      case 'social': return 'Social';
-      default: return category;
-    }
+  // Get connections between nodes
+  const getConnections = () => {
+    const connections: { from: SkillNode; to: SkillNode }[] = [];
+    
+    SKILLS.forEach(skill => {
+      if (skill.level === 0) return;
+      
+      // Find parent node
+      let parentSkill: SkillNode | undefined;
+      
+      if (skill.level === 1) {
+        parentSkill = SKILLS.find(s => s.level === 0);
+      } else {
+        // Find the previous level node in the same branch with closest angle
+        const sameBranchPrevLevel = SKILLS.filter(
+          s => s.branch === skill.branch && s.level === skill.level - 1
+        );
+        
+        if (sameBranchPrevLevel.length > 0) {
+          parentSkill = sameBranchPrevLevel.reduce((closest, current) => {
+            const closestDiff = Math.abs(closest.angle - skill.angle);
+            const currentDiff = Math.abs(current.angle - skill.angle);
+            return currentDiff < closestDiff ? current : closest;
+          });
+        }
+      }
+      
+      if (parentSkill) {
+        connections.push({ from: parentSkill, to: skill });
+      }
+    });
+    
+    return connections;
   };
 
-  const filteredSkills = filter === 'all' 
-    ? skills 
-    : skills.filter(s => s.category === filter);
+  const handleSkillPress = (skill: SkillNode) => {
+    setSelectedSkill(skill);
+    setModalVisible(true);
+  };
 
-  const filters = [
-    { key: 'all', label: 'Todas', icon: null, color: '#10b981' },
-    { key: 'cultural', label: 'Cultural', icon: 'earth', color: '#10b981' },
-    { key: 'idioma', label: 'Idioma', icon: 'translate', color: '#0ea5e9' },
-    { key: 'academico', label: 'Académico', icon: 'book-open-variant', color: '#8b5cf6' },
-    { key: 'social', label: 'Social', icon: 'account-heart', color: '#ec4899' },
-  ];
+  const connections = getConnections();
 
-  const animatedProgress = progressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, globalProgress / 100],
-  });
+  // Calculate total XP
+  const totalXP = SKILLS.reduce((sum, skill) => sum + skill.xpCurrent, 0);
+  const unlockedCount = SKILLS.filter(s => s.unlocked).length;
 
   return (
     <View style={styles.container}>
-      {/* Header con animación */}
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            opacity: headerAnim,
-            transform: [
-              {
-                translateY: headerAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-20, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.headerTop}>
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerLabel}>TU PROGRESO</Text>
-            <Title style={styles.headerTitle}>Árbol de habilidades</Title>
-            <Paragraph style={styles.headerSubtitle}>{totalXp} XP ganados</Paragraph>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.headerTitle}>Skill Tree</Text>
+            <Text style={styles.headerSubtitle}>Your learning journey</Text>
           </View>
-
-          {/* Círculo de progreso global */}
-          <View style={styles.globalProgressCircle}>
-            <View style={styles.globalProgressInner}>
-              <Text style={styles.globalProgressText}>{Math.round(globalProgress)}%</Text>
+          <View style={styles.statsContainer}>
+            <View style={styles.statBadge}>
+              <MaterialCommunityIcons name="star" size={16} color="#fbbf24" />
+              <Text style={styles.statText}>{totalXP} XP</Text>
+            </View>
+            <View style={styles.statBadge}>
+              <MaterialCommunityIcons name="check-circle" size={16} color="#22c55e" />
+              <Text style={styles.statText}>{unlockedCount}/{SKILLS.length}</Text>
             </View>
           </View>
         </View>
-
-        {/* Filtros con animación */}
-        <ScrollView
-          horizontal
+        
+        {/* Branch Legend */}
+        <ScrollView 
+          horizontal 
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContainer}
+          style={styles.legendScroll}
+          contentContainerStyle={styles.legendContainer}
         >
-          {filters.map((f, index) => (
-            <Animated.View
-              key={f.key}
-              style={{
-                opacity: headerAnim,
-                transform: [
-                  {
-                    translateX: headerAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [50, 0],
-                    }),
-                  },
-                ],
-              }}
-            >
-              <Pressable
-                onPress={() => setFilter(f.key as any)}
-                style={({ pressed }) => [
-                  styles.filterChip,
-                  {
-                    backgroundColor: filter === f.key ? f.color : '#334155',
-                    transform: [{ scale: pressed ? 0.95 : 1 }],
-                  },
-                ]}
-              >
-                {f.icon && (
-                  <MaterialCommunityIcons
-                    name={f.icon as any}
-                    size={16}
-                    color={filter === f.key ? '#fff' : '#94a3b8'}
-                    style={styles.filterIcon}
-                  />
-                )}
-                <Text
-                  style={[
-                    styles.filterText,
-                    { color: filter === f.key ? '#fff' : '#94a3b8' },
-                  ]}
-                >
-                  {f.label}
-                </Text>
-              </Pressable>
-            </Animated.View>
+          {BRANCHES.map(branch => (
+            <View key={branch.id} style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: branch.color }]} />
+              <Text style={styles.legendText}>{branch.name}</Text>
+            </View>
           ))}
         </ScrollView>
-      </Animated.View>
+      </View>
 
-      {/* Lista de habilidades */}
+      {/* Skill Tree */}
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        ref={scrollViewRef}
+        style={styles.treeContainer}
+        contentContainerStyle={[
+          styles.treeContent,
+          { width: TREE_WIDTH, height: TREE_HEIGHT },
+        ]}
+        horizontal
+        showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
+        contentOffset={{ x: (TREE_WIDTH - SCREEN_WIDTH) / 2, y: 0 }}
       >
-        {filteredSkills.map((skill, index) => (
-          <AnimatedSkillCard
-            key={skill.id}
-            skill={skill}
-            index={index}
-            isSelected={selectedSkill === skill.id}
-            onPress={() => setSelectedSkill(selectedSkill === skill.id ? null : skill.id)}
-            getCategoryColor={getCategoryColor}
-            getCategoryLabel={getCategoryLabel}
-          />
-        ))}
+        {/* Background circles */}
+        <Svg style={StyleSheet.absoluteFill}>
+          {LEVEL_RADIUS.slice(1).map((radius, index) => (
+            <Circle
+              key={index}
+              cx={CENTER_X}
+              cy={CENTER_Y}
+              r={radius}
+              stroke="#1f2937"
+              strokeWidth={1}
+              strokeDasharray="5,5"
+              fill="none"
+              opacity={0.5}
+            />
+          ))}
+        </Svg>
 
-        {/* Resumen de categorías */}
-        <Animated.View
-          style={[
-            styles.summaryContainer,
-            {
-              opacity: headerAnim,
-            },
-          ]}
-        >
-          <Surface style={styles.summaryCard}>
-            <Title style={styles.summaryTitle}>📊 Resumen de progreso</Title>
+        {/* Connection Lines */}
+        {connections.map((conn, index) => {
+          const fromPos = getSkillPosition(conn.from);
+          const toPos = getSkillPosition(conn.to);
+          const color = getBranchColor(conn.to.branch);
+          const unlocked = conn.from.unlocked && conn.to.unlocked;
+          
+          return (
+            <ConnectionLine
+              key={index}
+              x1={fromPos.x}
+              y1={fromPos.y}
+              x2={toPos.x}
+              y2={toPos.y}
+              color={color}
+              unlocked={unlocked}
+            />
+          );
+        })}
 
-            {['cultural', 'idioma', 'academico', 'social'].map((category, index) => {
-              const categorySkills = skills.filter(s => s.category === category);
-              const categoryXp = categorySkills.reduce((acc, s) => acc + s.xp, 0);
-              const categoryMaxXp = categorySkills.reduce((acc, s) => acc + s.maxXp, 0);
-              const categoryProgress = (categoryXp / categoryMaxXp) * 100;
-
-              return (
-                <Animated.View
-                  key={category}
-                  style={[
-                    styles.categoryProgressItem,
-                    {
-                      opacity: progressAnim,
-                      transform: [
-                        {
-                          translateX: progressAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [-30, 0],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <View style={styles.categoryProgressHeader}>
-                    <Text style={styles.categoryProgressLabel}>
-                      {getCategoryLabel(category)}
-                    </Text>
-                    <Text style={[styles.categoryProgressValue, { color: getCategoryColor(category) }]}>
-                      {Math.round(categoryProgress)}%
-                    </Text>
-                  </View>
-                  <ProgressBar
-                    progress={categoryProgress / 100}
-                    color={getCategoryColor(category)}
-                    style={styles.categoryProgressBar}
-                  />
-                </Animated.View>
-              );
-            })}
-          </Surface>
-        </Animated.View>
-
-        {/* Mensaje motivacional */}
-        <Animated.View
-          style={[
-            styles.motivationalContainer,
-            {
-              opacity: progressAnim,
-              transform: [
-                {
-                  scale: progressAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.8, 1],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Surface style={styles.motivationalCard}>
-            <MaterialCommunityIcons name="trophy-variant" size={40} color="#fbbf24" />
-            <Title style={styles.motivationalTitle}>¡Sigue así!</Title>
-            <Paragraph style={styles.motivationalText}>
-              Cada habilidad que desbloqueas te acerca más a sentirte como en casa 🏠
-            </Paragraph>
-          </Surface>
-        </Animated.View>
+        {/* Skill Nodes */}
+        {SKILLS.map(skill => {
+          const pos = getSkillPosition(skill);
+          return (
+            <SkillNodeComponent
+              key={skill.id}
+              skill={skill}
+              x={pos.x}
+              y={pos.y}
+              onPress={() => handleSkillPress(skill)}
+            />
+          );
+        })}
       </ScrollView>
+
+      {/* Skill Detail Modal */}
+      <SkillDetailModal
+        skill={selectedSkill}
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+      />
+
+      {/* Bottom info */}
+      <Surface style={styles.bottomInfo}>
+        <MaterialCommunityIcons name="information-outline" size={20} color="#64748b" />
+        <Text style={styles.bottomInfoText}>
+          Tap on any skill to see details. Complete adventures to unlock new skills!
+        </Text>
+      </Surface>
     </View>
   );
 }
 
+// ==================== STYLES ====================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0f172a',
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
     backgroundColor: '#1e293b',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
-  headerTop: {
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  headerLabel: {
-    color: '#10b981',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 2,
   },
   headerTitle: {
     color: '#f1f5f9',
-    marginTop: 4,
+    fontSize: 24,
+    fontWeight: '800',
   },
   headerSubtitle: {
     color: '#94a3b8',
-    fontSize: 13,
+    fontSize: 14,
+    marginTop: 2,
   },
-  globalProgressCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 6,
-    borderColor: '#10b981',
-    backgroundColor: '#0f172a',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  globalProgressInner: {
-    alignItems: 'center',
-  },
-  globalProgressText: {
-    color: '#10b981',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  filtersContainer: {
+  statsContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
   },
-  filterChip: {
+  statBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  filterIcon: {
-    marginRight: 6,
-  },
-  filterText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  cardContainer: {
-    marginBottom: 12,
-  },
-  card: {
-    backgroundColor: '#1e293b',
-    borderRadius: 20,
-    borderLeftWidth: 4,
-    overflow: 'hidden',
-  },
-  cardContent: {
-    padding: 16,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  cardInfo: {
-    flex: 1,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  categoryChip: {
-    height: 18,
-  },
-  categoryChipText: {
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    marginLeft: 8,
-  },
-  skillName: {
-    color: '#f1f5f9',
-    fontSize: 15,
-    marginBottom: 2,
-  },
-  skillDescription: {
-    color: '#94a3b8',
-    fontSize: 12,
-  },
-  progressCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 4,
-    borderColor: '#334155',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressCircleInner: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  expandedContent: {
-    overflow: 'hidden',
-  },
-  divider: {
-    height: 1,
     backgroundColor: '#334155',
-    marginTop: 16,
-    marginBottom: 12,
-  },
-  xpContainer: {
-    marginBottom: 12,
-  },
-  xpLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  xpLabel: {
-    color: '#94a3b8',
-    fontSize: 12,
-  },
-  xpValue: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  xpProgressBar: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#334155',
-  },
-  prerequisitesContainer: {
-    marginBottom: 12,
-  },
-  prerequisitesLabel: {
-    color: '#94a3b8',
-    fontSize: 11,
-    marginBottom: 6,
-  },
-  prerequisiteChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
     gap: 6,
   },
-  prereqChip: {
-    height: 24,
-    backgroundColor: '#334155',
+  statText: {
+    color: '#f1f5f9',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  prereqChipText: {
-    fontSize: 10,
-    color: '#10b981',
-  },
-  practiceButton: {
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  practiceButtonContent: {
-    paddingVertical: 6,
-  },
-  summaryContainer: {
+  legendScroll: {
     marginTop: 8,
   },
-  summaryCard: {
-    padding: 20,
-    borderRadius: 20,
-    backgroundColor: '#1e293b',
+  legendContainer: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingVertical: 4,
   },
-  summaryTitle: {
-    color: '#f1f5f9',
-    marginBottom: 16,
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendText: {
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+  treeContainer: {
+    flex: 1,
+  },
+  treeContent: {
+    position: 'relative',
+  },
+  skillNode: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nodeGlow: {
+    position: 'absolute',
+  },
+  nodeInner: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+  },
+  nodeInnerCircle: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  nodeIcon: {
     textAlign: 'center',
   },
-  categoryProgressItem: {
+  progressRing: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressArc: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 100,
+    borderWidth: 2,
+    borderTopColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: 'transparent',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#1e293b',
+    borderRadius: 24,
+    width: SCREEN_WIDTH - 48,
+    maxWidth: 360,
+    overflow: 'hidden',
+    borderWidth: 2,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+  },
+  modalIcon: {
+    fontSize: 48,
     marginBottom: 12,
   },
-  categoryProgressHeader: {
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  modalDescription: {
+    color: '#94a3b8',
+    fontSize: 16,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  modalProgress: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  modalProgressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  categoryProgressLabel: {
-    color: '#f1f5f9',
-    fontSize: 13,
-    fontWeight: '600',
+  modalProgressLabel: {
+    color: '#64748b',
+    fontSize: 14,
   },
-  categoryProgressValue: {
-    fontSize: 13,
+  modalProgressValue: {
+    fontSize: 14,
     fontWeight: '700',
   },
-  categoryProgressBar: {
-    height: 6,
-    borderRadius: 3,
+  modalProgressBar: {
+    height: 8,
     backgroundColor: '#334155',
+    borderRadius: 4,
+    overflow: 'hidden',
   },
-  motivationalContainer: {
-    marginTop: 16,
-    marginBottom: 24,
+  modalProgressFill: {
+    height: '100%',
+    borderRadius: 4,
   },
-  motivationalCard: {
-    padding: 24,
-    borderRadius: 20,
-    backgroundColor: '#10b981',
+  modalStatus: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 20,
   },
-  motivationalTitle: {
-    color: '#fff',
-    marginTop: 12,
-    textAlign: 'center',
+  modalStatusText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
-  motivationalText: {
-    color: '#d1fae5',
-    textAlign: 'center',
-    marginTop: 4,
+  modalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    margin: 20,
+    marginTop: 0,
+    borderRadius: 16,
+    gap: 8,
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  bottomInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+    margin: 16,
+    padding: 16,
+    borderRadius: 16,
+    gap: 12,
+  },
+  bottomInfoText: {
+    flex: 1,
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
